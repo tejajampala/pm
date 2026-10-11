@@ -1,1 +1,1 @@
-This folder will contain start and stop scripts for Mac, PC and Linux
+This folder contains start and stop scripts for Windows, Mac, and Linux. The start scripts build and run the Docker image from the project root and pass the root `.env` file to the container at runtime.

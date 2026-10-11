@@ -1,0 +1,58 @@
+{
+  "database": "sqlite",
+  "schema_version": 1,
+  "tables": [
+    {
+      "name": "users",
+      "description": "Stores the authenticated MVP user record.",
+      "columns": [
+        { "name": "id", "type": "INTEGER", "primary_key": true },
+        { "name": "username", "type": "TEXT", "unique": true, "not_null": true },
+        { "name": "password_hash", "type": "TEXT", "not_null": true },
+        { "name": "created_at", "type": "TEXT", "not_null": true }
+      ]
+    },
+    {
+      "name": "boards",
+      "description": "One board per user for the MVP; future-ready for multi-board support.",
+      "columns": [
+        { "name": "id", "type": "INTEGER", "primary_key": true },
+        { "name": "user_id", "type": "INTEGER", "not_null": true, "foreign_key": "users.id" },
+        { "name": "name", "type": "TEXT", "default": "Main Board" },
+        { "name": "created_at", "type": "TEXT", "not_null": true },
+        { "name": "updated_at", "type": "TEXT", "not_null": true }
+      ]
+    },
+    {
+      "name": "columns",
+      "description": "Board columns. Titles are editable by the user, while the column ordering is preserved.",
+      "columns": [
+        { "name": "id", "type": "INTEGER", "primary_key": true },
+        { "name": "board_id", "type": "INTEGER", "not_null": true, "foreign_key": "boards.id" },
+        { "name": "title", "type": "TEXT", "not_null": true },
+        { "name": "position", "type": "INTEGER", "not_null": true },
+        { "name": "created_at", "type": "TEXT", "not_null": true }
+      ]
+    },
+    {
+      "name": "cards",
+      "description": "Kanban cards attached to a board column.",
+      "columns": [
+        { "name": "id", "type": "INTEGER", "primary_key": true },
+        { "name": "board_id", "type": "INTEGER", "not_null": true, "foreign_key": "boards.id" },
+        { "name": "column_id", "type": "INTEGER", "not_null": true, "foreign_key": "columns.id" },
+        { "name": "title", "type": "TEXT", "not_null": true },
+        { "name": "details", "type": "TEXT", "default": "" },
+        { "name": "position", "type": "INTEGER", "not_null": true },
+        { "name": "created_at", "type": "TEXT", "not_null": true },
+        { "name": "updated_at", "type": "TEXT", "not_null": true }
+      ]
+    }
+  ],
+  "notes": [
+    "The MVP uses a single board per user, but the schema is modeled to allow future multi-board and multi-user expansion.",
+    "Column reorder and card positions are stored as integers so drag-and-drop movement is deterministic and easy to serialize to the UI.",
+    "The password field is intentionally represented as a hash even though the MVP uses a hardcoded sign-in flow, to keep the model future-proof.",
+    "SQLite is the database engine because the app runs locally and the project scope is intentionally small."
+  ]
+}
