@@ -22,7 +22,7 @@ FastAPI service for the Project Management MVP. It stores the Kanban board in SQ
 - `GET /api/health` returns service status.
 - `GET /api/users/{username}/board` returns the board; unknown user returns 404.
 - `PUT /api/users/{username}/board` replaces the whole board after validation.
-- `POST /api/ai/chat` takes `{username, message, board?, history}`, asks OpenRouter (`openai/gpt-oss-120b`) for `{reply, actions}` (small actions such as `create_card`, `update_card`, `move_card`, `delete_card`, `rename_column`, never the whole board), applies them to the board, saves the result, and returns `{reply, boardUpdate}` (`boardUpdate` is the saved board, or null when there were no actions). Without an API key it replies that the assistant is not configured.
+- `POST /api/ai/chat` takes `{username, message, board?, history}`, asks OpenRouter (`openai/gpt-oss-120b`) for `{reply, actions}` (small actions such as `create_card`, `update_card`, `move_card`, `delete_card`, `rename_column`, never the whole board), applies them to the board, saves the result, and returns `{reply, boardUpdate}` (`boardUpdate` is the saved board, or null when there were no actions). The reply ends with a "Changes made:" list built from the applied actions. Without an API key it replies that the assistant is not configured.
 - `/` serves `STATIC_DIR` (or a placeholder page if it is missing).
 
 ## Validation
