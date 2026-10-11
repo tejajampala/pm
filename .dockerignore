@@ -6,4 +6,8 @@
 **/__pycache__
 **/.pytest_cache
 **/.DS_Store
+.env
 .gitignore
+frontend/out
+backend/data
+backend/static

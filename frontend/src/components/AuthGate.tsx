@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState, useSyncExternalStore, type FormEvent } from "react";
 
 import { KanbanBoard } from "@/components/KanbanBoard";
 
@@ -8,24 +8,30 @@ const DEMO_USERNAME = "user";
 const DEMO_PASSWORD = "password";
 const AUTH_STORAGE_KEY = "pm-demo-auth";
 
+const subscribe = (onChange: () => void) => {
+  window.addEventListener("storage", onChange);
+  return () => window.removeEventListener("storage", onChange);
+};
+
+const readSession = () => window.localStorage.getItem(AUTH_STORAGE_KEY) === "true";
+
+// The "storage" event only fires in other tabs, so changes made here notify subscribers manually.
+const notifySessionChange = () => window.dispatchEvent(new Event("storage"));
+
 export const AuthGate = () => {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  // null on the server and during hydration, so the sign-in form does not flash for signed-in users.
+  const isAuthenticated = useSyncExternalStore<boolean | null>(subscribe, readSession, () => null);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
 
-  useEffect(() => {
-    const savedSession = window.localStorage.getItem(AUTH_STORAGE_KEY);
-    setIsAuthenticated(savedSession === "true");
-  }, []);
-
-  const handleLogin = (event: React.FormEvent<HTMLFormElement>) => {
+  const handleLogin = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
     if (username === DEMO_USERNAME && password === DEMO_PASSWORD) {
       setError("");
       window.localStorage.setItem(AUTH_STORAGE_KEY, "true");
-      setIsAuthenticated(true);
+      notifySessionChange();
       return;
     }
 
@@ -34,11 +40,15 @@ export const AuthGate = () => {
 
   const handleLogout = () => {
     window.localStorage.removeItem(AUTH_STORAGE_KEY);
-    setIsAuthenticated(false);
+    notifySessionChange();
     setUsername("");
     setPassword("");
     setError("");
   };
+
+  if (isAuthenticated === null) {
+    return null;
+  }
 
   if (isAuthenticated) {
     return (

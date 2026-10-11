@@ -12,9 +12,12 @@ type AIChatSidebarProps = {
   board: BoardData;
   username: string;
   onBoardUpdate: (board: BoardData) => void;
+  onBeforeSend?: () => Promise<void>;
 };
 
-export const AIChatSidebar = ({ board, username, onBoardUpdate }: AIChatSidebarProps) => {
+const MAX_HISTORY_TURNS = 20;
+
+export const AIChatSidebar = ({ board, username, onBoardUpdate, onBeforeSend }: AIChatSidebarProps) => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [prompt, setPrompt] = useState("");
   const [error, setError] = useState("");
@@ -31,14 +34,25 @@ export const AIChatSidebar = ({ board, username, onBoardUpdate }: AIChatSidebarP
     setIsSending(true);
 
     try {
+      // Let pending board saves finish so the AI works from, and then replaces, the latest saved board.
+      await onBeforeSend?.();
       const response = await fetch("/api/ai/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, message, board, history: messages }),
+        body: JSON.stringify({
+          username,
+          message,
+          board,
+          history: messages.slice(-MAX_HISTORY_TURNS),
+        }),
       });
-      const payload = await response.json();
+      const payload = await response.json().catch(() => null);
       if (!response.ok) {
-        throw new Error(payload.detail || `AI request failed with status ${response.status}`);
+        throw new Error(
+          typeof payload?.detail === "string"
+            ? payload.detail
+            : `AI request failed with status ${response.status}`
+        );
       }
 
       setMessages((current) => [
@@ -54,7 +68,7 @@ export const AIChatSidebar = ({ board, username, onBoardUpdate }: AIChatSidebarP
   };
 
   return (
-    <aside className="flex min-h-[520px] flex-col border-t border-[var(--stroke)] bg-white xl:min-h-0 xl:border-l xl:border-t-0">
+    <aside className="flex min-h-[520px] flex-col border-t border-[var(--stroke)] bg-white 2xl:min-h-0 2xl:border-l 2xl:border-t-0">
       <header className="flex items-center justify-between border-b border-[var(--stroke)] px-5 py-4">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--gray-text)]">

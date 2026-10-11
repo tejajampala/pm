@@ -32,17 +32,18 @@ Stores each card with its title, details, and column placement. `position` is im
 
 ## Data model decisions
 
+- Ids are text. Columns and cards use a per-board key `(board_id, id)`, so different boards can reuse ids such as `card-1`.
 - Each card belongs to one board and one column.
 - Each column belongs to one board.
 - Each board belongs to one user.
-- Order is stored as an integer position rather than relying on fragile list ordering in application code.
+- Order is stored as an integer position and read by sorting on it, not by insertion order.
 - Titles are mutable, which fits the requirement that fixed columns can be renamed.
 
 ## MVP assumptions
 
 - There is only one board per user.
 - User sign-in is still hardcoded as `user` / `password` for the MVP.
-- The database initializes automatically if it does not already exist.
+- The database initializes automatically at startup if it does not already exist. In Docker it lives in the `pm-mvp-data` volume so it survives restarts.
 - Card updates, column renames, and drag-and-drop moves are persisted through backend API calls.
 
 ## Future extension path

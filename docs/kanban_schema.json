@@ -1,58 +1,61 @@
 {
   "database": "sqlite",
-  "schema_version": 1,
+  "schema_version": 2,
   "tables": [
     {
       "name": "users",
-      "description": "Stores the authenticated MVP user record.",
+      "description": "Stores the MVP user record.",
       "columns": [
-        { "name": "id", "type": "INTEGER", "primary_key": true },
+        { "name": "id", "type": "TEXT", "primary_key": true },
         { "name": "username", "type": "TEXT", "unique": true, "not_null": true },
         { "name": "password_hash", "type": "TEXT", "not_null": true },
-        { "name": "created_at", "type": "TEXT", "not_null": true }
+        { "name": "created_at", "type": "TEXT", "not_null": true, "default": "CURRENT_TIMESTAMP" }
       ]
     },
     {
       "name": "boards",
       "description": "One board per user for the MVP; future-ready for multi-board support.",
       "columns": [
-        { "name": "id", "type": "INTEGER", "primary_key": true },
-        { "name": "user_id", "type": "INTEGER", "not_null": true, "foreign_key": "users.id" },
-        { "name": "name", "type": "TEXT", "default": "Main Board" },
-        { "name": "created_at", "type": "TEXT", "not_null": true },
-        { "name": "updated_at", "type": "TEXT", "not_null": true }
+        { "name": "id", "type": "TEXT", "primary_key": true },
+        { "name": "user_id", "type": "TEXT", "not_null": true, "foreign_key": "users.id" },
+        { "name": "name", "type": "TEXT", "not_null": true },
+        { "name": "created_at", "type": "TEXT", "not_null": true, "default": "CURRENT_TIMESTAMP" },
+        { "name": "updated_at", "type": "TEXT", "not_null": true, "default": "CURRENT_TIMESTAMP" }
       ]
     },
     {
       "name": "columns",
-      "description": "Board columns. Titles are editable by the user, while the column ordering is preserved.",
+      "description": "Board columns. Titles are editable; the five column ids are fixed. Primary key is (board_id, id) so each board owns its ids.",
+      "primary_key": ["board_id", "id"],
       "columns": [
-        { "name": "id", "type": "INTEGER", "primary_key": true },
-        { "name": "board_id", "type": "INTEGER", "not_null": true, "foreign_key": "boards.id" },
+        { "name": "board_id", "type": "TEXT", "not_null": true, "foreign_key": "boards.id" },
+        { "name": "id", "type": "TEXT", "not_null": true },
         { "name": "title", "type": "TEXT", "not_null": true },
         { "name": "position", "type": "INTEGER", "not_null": true },
-        { "name": "created_at", "type": "TEXT", "not_null": true }
+        { "name": "created_at", "type": "TEXT", "not_null": true, "default": "CURRENT_TIMESTAMP" }
       ]
     },
     {
       "name": "cards",
-      "description": "Kanban cards attached to a board column.",
+      "description": "Kanban cards attached to a board column. Primary key is (board_id, id).",
+      "primary_key": ["board_id", "id"],
       "columns": [
-        { "name": "id", "type": "INTEGER", "primary_key": true },
-        { "name": "board_id", "type": "INTEGER", "not_null": true, "foreign_key": "boards.id" },
-        { "name": "column_id", "type": "INTEGER", "not_null": true, "foreign_key": "columns.id" },
+        { "name": "board_id", "type": "TEXT", "not_null": true },
+        { "name": "id", "type": "TEXT", "not_null": true },
+        { "name": "column_id", "type": "TEXT", "not_null": true, "foreign_key": "columns(board_id, id)" },
         { "name": "title", "type": "TEXT", "not_null": true },
-        { "name": "details", "type": "TEXT", "default": "" },
+        { "name": "details", "type": "TEXT", "not_null": true, "default": "" },
         { "name": "position", "type": "INTEGER", "not_null": true },
-        { "name": "created_at", "type": "TEXT", "not_null": true },
-        { "name": "updated_at", "type": "TEXT", "not_null": true }
+        { "name": "created_at", "type": "TEXT", "not_null": true, "default": "CURRENT_TIMESTAMP" },
+        { "name": "updated_at", "type": "TEXT", "not_null": true, "default": "CURRENT_TIMESTAMP" }
       ]
     }
   ],
   "notes": [
     "The MVP uses a single board per user, but the schema is modeled to allow future multi-board and multi-user expansion.",
-    "Column reorder and card positions are stored as integers so drag-and-drop movement is deterministic and easy to serialize to the UI.",
-    "The password field is intentionally represented as a hash even though the MVP uses a hardcoded sign-in flow, to keep the model future-proof.",
+    "Ids are text (the UI generates card ids). Columns and cards are keyed per board, so two boards can both have 'card-1' or 'col-backlog'.",
+    "Column and card positions are stored as integers so drag-and-drop ordering is deterministic. Card order within a column is read by sorting on position.",
+    "password_hash holds a SHA-256 of the MVP password; sign-in itself is checked in the browser for the MVP.",
     "SQLite is the database engine because the app runs locally and the project scope is intentionally small."
   ]
 }

@@ -1,3 +1,4 @@
+import { useState } from "react";
 import clsx from "clsx";
 import { useDroppable } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
@@ -9,14 +10,45 @@ type KanbanColumnProps = {
   column: Column;
   cards: Card[];
   onRename: (columnId: string, title: string) => void;
+  onEditCard: (cardId: string, title: string, details: string) => void;
   onAddCard: (columnId: string, title: string, details: string) => void;
   onDeleteCard: (columnId: string, cardId: string) => void;
+};
+
+// Keeps the typed title local and saves once on blur or Enter; the parent re-keys it when the saved title changes.
+const ColumnTitleInput = ({ title, onCommit }: { title: string; onCommit: (title: string) => void }) => {
+  const [draft, setDraft] = useState(title);
+
+  const commit = () => {
+    const next = draft.trim();
+    if (!next) {
+      setDraft(title);
+    } else if (next !== title) {
+      onCommit(next);
+    }
+  };
+
+  return (
+    <input
+      value={draft}
+      onChange={(event) => setDraft(event.target.value)}
+      onBlur={commit}
+      onKeyDown={(event) => {
+        if (event.key === "Enter") {
+          event.currentTarget.blur();
+        }
+      }}
+      className="mt-3 w-full bg-transparent font-display text-lg font-semibold text-[var(--navy-dark)] outline-none"
+      aria-label="Column title"
+    />
+  );
 };
 
 export const KanbanColumn = ({
   column,
   cards,
   onRename,
+  onEditCard,
   onAddCard,
   onDeleteCard,
 }: KanbanColumnProps) => {
@@ -36,14 +68,13 @@ export const KanbanColumn = ({
           <div className="flex items-center gap-3">
             <div className="h-2 w-10 rounded-full bg-[var(--accent-yellow)]" />
             <span className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--gray-text)]">
-              {cards.length} cards
+              {cards.length} {cards.length === 1 ? "card" : "cards"}
             </span>
           </div>
-          <input
-            value={column.title}
-            onChange={(event) => onRename(column.id, event.target.value)}
-            className="mt-3 w-full bg-transparent font-display text-lg font-semibold text-[var(--navy-dark)] outline-none"
-            aria-label="Column title"
+          <ColumnTitleInput
+            key={column.title}
+            title={column.title}
+            onCommit={(title) => onRename(column.id, title)}
           />
         </div>
       </div>
@@ -54,6 +85,7 @@ export const KanbanColumn = ({
               key={card.id}
               card={card}
               onDelete={(cardId) => onDeleteCard(column.id, cardId)}
+              onEdit={onEditCard}
             />
           ))}
         </SortableContext>

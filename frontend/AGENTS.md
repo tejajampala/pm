@@ -2,83 +2,39 @@
 
 ## Overview
 
-This frontend is a Next.js demo app for a single-board Kanban project management interface. It is currently a static frontend-only MVP and has not yet been integrated with authentication, a database, or the backend API.
+Next.js (static export) single-board Kanban UI. It signs in with the hardcoded demo user, loads and saves the board through the backend API, and includes an AI chat sidebar. In Docker, FastAPI serves the build and `/api` on one origin; under `next dev`, `/api/*` is proxied to `BACKEND_API_URL` (default `http://127.0.0.1:8000`).
 
-## Current app structure
+## Structure
 
-- [src/app/page.tsx](src/app/page.tsx)  
-  The homepage renders the Kanban board component.
-
-- [src/components/KanbanBoard.tsx](src/components/KanbanBoard.tsx)  
-  Main board container. It loads and saves board state through the backend, manages drag-and-drop, column renaming, card creation/deletion, and applies AI board updates.
-- [src/components/AIChatSidebar.tsx](src/components/AIChatSidebar.tsx)  
-  Board-aware AI chat UI. It sends the current board and conversation history to the backend and applies returned board updates.
-
-- [src/components/KanbanColumn.tsx](src/components/KanbanColumn.tsx)  
-  Renders one column with its title, cards, and a form for adding cards.
-
-- [src/components/KanbanCard.tsx](src/components/KanbanCard.tsx)  
-  Displays a card in the board UI and supports card editing behavior.
-
-- [src/components/KanbanCardPreview.tsx](src/components/KanbanCardPreview.tsx)  
-  Drag overlay preview used during drag operations.
-
-- [src/components/NewCardForm.tsx](src/components/NewCardForm.tsx)  
-  Form used to create new cards inside a column.
-
-- [src/lib/kanban.ts](src/lib/kanban.ts)  
-  Contains the board data model, initial seed data, card movement logic, and helper functions.
+- [src/app/page.tsx](src/app/page.tsx) renders `AuthGate`.
+- [src/components/AuthGate.tsx](src/components/AuthGate.tsx) checks `user` / `password` in the browser, keeps the session flag in `localStorage` (read with `useSyncExternalStore`, so nothing renders until the session is known), and provides logout.
+- [src/components/KanbanBoard.tsx](src/components/KanbanBoard.tsx) owns board state. It loads the board (an error with Retry is shown on failure; it never falls back to seed data), applies changes through one `updateBoard` helper, and saves the full board with a serialized queue so PUTs run one at a time, in order. It also handles drag and drop (dnd-kit) and applies AI updates (already saved by the backend).
+- [src/components/KanbanColumn.tsx](src/components/KanbanColumn.tsx) renders a column; the title input saves on blur or Enter, not per keystroke.
+- [src/components/KanbanCard.tsx](src/components/KanbanCard.tsx) shows a card with inline Edit and Remove.
+- [src/components/NewCardForm.tsx](src/components/NewCardForm.tsx), [KanbanCardPreview.tsx](src/components/KanbanCardPreview.tsx) are the add form and drag overlay.
+- [src/components/AIChatSidebar.tsx](src/components/AIChatSidebar.tsx) waits for pending saves, sends board, last 20 messages and the prompt to `/api/ai/chat`, and shows errors.
+- [src/lib/kanban.ts](src/lib/kanban.ts) has the board types, seed data (`initialData`, used by tests), `moveCard`, and `createId`.
 
 ## State model
 
-The board data is loaded from and persisted to the backend, with React state keeping the current view responsive. The structure is:
+`{ columns: [{id, title, cardIds}], cards: { [id]: {id, title, details} } }`, shared with the backend. The five column ids are fixed.
 
-- columns: ordered column list with id, title, and cardIds
-- cards: record keyed by card id, each containing id, title, and details
+## Layout
 
-The move logic supports moving cards:
+The chat sidebar sits beside the board only at the `2xl` breakpoint; below that it stacks under the board so five columns stay readable.
 
-- between columns
-- within the same column
-- to specific positions in a list
+## Tests
 
-## Current behavior
+- `npm run test:unit`: Vitest and React Testing Library (`src/**/*.test.ts(x)`).
+- `npm run test:e2e`: Playwright. The config starts its own backend (port 8100, temporary database, AI key blanked) and dev server (port 3100) and never reuses an existing server. Each test resets the board through the API first.
+- `npm run lint`, `npm run build` (type-checks tests too).
 
-The existing demo includes:
+<!-- BEGIN:nextjs-agent-rules -->
 
-- a five-column Kanban layout
-- placeholder project cards with text content
-- drag-and-drop card movement
-- column renaming
-- card creation and deletion
-- a visual card drag overlay
-- demo sign-in and logout
-- OpenRouter-backed board chat for card creation, editing, and movement
+## This is NOT the Next.js you know
 
-## Testing setup
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
 
-- [src/lib/kanban.test.ts](src/lib/kanban.test.ts)  
-  Unit tests covering kanban logic and board movement behavior.
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
 
-- [src/components/KanbanBoard.test.tsx](src/components/KanbanBoard.test.tsx)  
-  Component tests for the board UI.
-
-- [tests/kanban.spec.ts](../tests/kanban.spec.ts)  
-  End-to-end browser-style test coverage for the Kanban experience.
-
-The project uses:
-
-- Vitest for unit tests
-- React Testing Library for component tests
-- Playwright for browser-level tests
-
-## Important constraints for future work
-
-- This is a demo-only frontend; it is not yet connected to the backend or database.
-- Auth is not yet implemented and there is no user-specific board state.
-- The board data is local only and resets on refresh.
-- The project is expected to evolve toward a Dockerized, FastAPI-backed, SQLite-persisted app, but the current frontend is still the standalone demo.
-
-## Working approach
-
-When implementing future phases, preserve the current board behavior while progressively replacing the local in-memory state with backend-backed persistence, adding auth, and then integrating AI-driven board actions.
+<!-- END:nextjs-agent-rules -->

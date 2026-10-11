@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   DndContext,
   DragOverlay,
@@ -14,28 +14,27 @@ import {
 import { KanbanColumn } from "@/components/KanbanColumn";
 import { KanbanCardPreview } from "@/components/KanbanCardPreview";
 import { AIChatSidebar } from "@/components/AIChatSidebar";
-import { createId, initialData, moveCard, type BoardData } from "@/lib/kanban";
+import { createId, moveCard, type BoardData } from "@/lib/kanban";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "";
+const getBoardUrl = (username: string) => `/api/users/${encodeURIComponent(username)}/board`;
 
-const getBoardUrl = (username: string) => `${API_BASE_URL}/api/users/${username}/board`;
-
-const normalizeBoard = (payload: Partial<BoardData> | null | undefined): BoardData => {
-  if (!payload || !Array.isArray(payload.columns) || !payload.cards) {
-    return initialData;
-  }
-
-  return {
-    columns: payload.columns,
-    cards: payload.cards,
-  };
-};
+const isBoardData = (payload: unknown): payload is BoardData =>
+  typeof payload === "object" &&
+  payload !== null &&
+  Array.isArray((payload as BoardData).columns) &&
+  typeof (payload as BoardData).cards === "object" &&
+  (payload as BoardData).cards !== null;
 
 export const KanbanBoard = ({ username = "user" }: { username?: string }) => {
-  const [board, setBoard] = useState<BoardData>(() => initialData);
+  const [board, setBoard] = useState<BoardData | null>(null);
   const [activeCardId, setActiveCardId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [reloadCount, setReloadCount] = useState(0);
+
+  // boardRef always holds the latest board so handlers never read stale state; saves run one at a time, in order.
+  const boardRef = useRef<BoardData | null>(null);
+  const saveQueue = useRef<Promise<void>>(Promise.resolve());
 
   useEffect(() => {
     let isCurrent = true;
@@ -53,15 +52,18 @@ export const KanbanBoard = ({ username = "user" }: { username?: string }) => {
           throw new Error(`Board request failed with status ${response.status}`);
         }
 
-        const payload = await response.json();
+        const payload: unknown = await response.json();
+        if (!isBoardData(payload)) {
+          throw new Error("Board response was malformed");
+        }
 
         if (isCurrent) {
-          setBoard(normalizeBoard(payload));
+          boardRef.current = payload;
+          setBoard(payload);
         }
       } catch (loadError) {
         if (isCurrent) {
           setError(loadError instanceof Error ? loadError.message : "Unable to load board");
-          setBoard(initialData);
         }
       } finally {
         if (isCurrent) {
@@ -75,7 +77,7 @@ export const KanbanBoard = ({ username = "user" }: { username?: string }) => {
     return () => {
       isCurrent = false;
     };
-  }, [username]);
+  }, [username, reloadCount]);
 
   const saveBoard = async (nextBoard: BoardData) => {
     const response = await fetch(getBoardUrl(username), {
@@ -90,8 +92,6 @@ export const KanbanBoard = ({ username = "user" }: { username?: string }) => {
       throw new Error(`Board save failed with status ${response.status}`);
     }
 
-    const payload = await response.json();
-    setBoard(normalizeBoard(payload));
     setError(null);
   };
 
@@ -101,7 +101,23 @@ export const KanbanBoard = ({ username = "user" }: { username?: string }) => {
     })
   );
 
-  const cardsById = useMemo(() => board.cards, [board.cards]);
+  const updateBoard = (change: (current: BoardData) => BoardData, failureMessage: string) => {
+    const current = boardRef.current;
+    if (!current) {
+      return;
+    }
+
+    const next = change(current);
+    if (next === current) {
+      return;
+    }
+
+    boardRef.current = next;
+    setBoard(next);
+    saveQueue.current = saveQueue.current
+      .then(() => saveBoard(next))
+      .catch(() => setError(failureMessage));
+  };
 
   const handleDragStart = (event: DragStartEvent) => {
     setActiveCardId(event.active.id as string);
@@ -115,69 +131,59 @@ export const KanbanBoard = ({ username = "user" }: { username?: string }) => {
       return;
     }
 
-    setBoard((prev) => {
-      const nextBoard = {
-        ...prev,
-        columns: moveCard(prev.columns, active.id as string, over.id as string),
-      };
-
-      void saveBoard(nextBoard).catch(() => {
-        setError("Unable to save the board after moving a card.");
-      });
-
-      return nextBoard;
-    });
+    updateBoard((current) => {
+      const columns = moveCard(current.columns, active.id as string, over.id as string);
+      return columns === current.columns ? current : { ...current, columns };
+    }, "Unable to save the board after moving a card.");
   };
 
   const handleRenameColumn = (columnId: string, title: string) => {
-    setBoard((prev) => {
-      const nextBoard = {
-        ...prev,
-        columns: prev.columns.map((column) =>
+    updateBoard(
+      (current) => ({
+        ...current,
+        columns: current.columns.map((column) =>
           column.id === columnId ? { ...column, title } : column
         ),
-      };
-
-      void saveBoard(nextBoard).catch(() => {
-        setError("Unable to save the renamed column.");
-      });
-
-      return nextBoard;
-    });
+      }),
+      "Unable to save the renamed column."
+    );
   };
 
   const handleAddCard = (columnId: string, title: string, details: string) => {
     const id = createId("card");
-    setBoard((prev) => {
-      const nextBoard = {
-        ...prev,
+    updateBoard(
+      (current) => ({
         cards: {
-          ...prev.cards,
+          ...current.cards,
           [id]: { id, title, details: details || "No details yet." },
         },
-        columns: prev.columns.map((column) =>
+        columns: current.columns.map((column) =>
           column.id === columnId
             ? { ...column, cardIds: [...column.cardIds, id] }
             : column
         ),
-      };
+      }),
+      "Unable to save the new card."
+    );
+  };
 
-      void saveBoard(nextBoard).catch(() => {
-        setError("Unable to save the new card.");
-      });
-
-      return nextBoard;
-    });
+  const handleEditCard = (cardId: string, title: string, details: string) => {
+    updateBoard(
+      (current) => ({
+        ...current,
+        cards: { ...current.cards, [cardId]: { id: cardId, title, details } },
+      }),
+      "Unable to save the edited card."
+    );
   };
 
   const handleDeleteCard = (columnId: string, cardId: string) => {
-    setBoard((prev) => {
-      const nextBoard = {
-        ...prev,
+    updateBoard(
+      (current) => ({
         cards: Object.fromEntries(
-          Object.entries(prev.cards).filter(([id]) => id !== cardId)
+          Object.entries(current.cards).filter(([id]) => id !== cardId)
         ),
-        columns: prev.columns.map((column) =>
+        columns: current.columns.map((column) =>
           column.id === columnId
             ? {
                 ...column,
@@ -185,22 +191,42 @@ export const KanbanBoard = ({ username = "user" }: { username?: string }) => {
               }
             : column
         ),
-      };
-
-      void saveBoard(nextBoard).catch(() => {
-        setError("Unable to save the deleted card.");
-      });
-
-      return nextBoard;
-    });
+      }),
+      "Unable to save the deleted card."
+    );
   };
 
+  // The backend has already saved an AI update, so it is applied locally without another save.
   const handleAIUpdate = (nextBoard: BoardData) => {
-    setBoard(normalizeBoard(nextBoard));
+    boardRef.current = nextBoard;
+    setBoard(nextBoard);
     setError(null);
   };
 
-  const activeCard = activeCardId ? cardsById[activeCardId] : null;
+  if (!board) {
+    return (
+      <main className="mx-auto flex min-h-screen max-w-[1500px] flex-col gap-4 px-6 pt-12">
+        {isLoading ? (
+          <div className="rounded-2xl border border-[var(--stroke)] bg-white/80 p-4 text-sm font-medium text-[var(--navy-dark)] shadow-[var(--shadow)]">
+            Loading board...
+          </div>
+        ) : (
+          <div className="flex items-center justify-between gap-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-medium text-red-700">
+            <span>{error ?? "Unable to load board"}</span>
+            <button
+              type="button"
+              onClick={() => setReloadCount((count) => count + 1)}
+              className="rounded-full bg-[var(--secondary-purple)] px-4 py-2 text-xs font-semibold uppercase tracking-wide text-white transition hover:opacity-90"
+            >
+              Retry
+            </button>
+          </div>
+        )}
+      </main>
+    );
+  }
+
+  const activeCard = activeCardId ? board.cards[activeCardId] : null;
 
   return (
     <div className="relative overflow-hidden">
@@ -208,12 +234,6 @@ export const KanbanBoard = ({ username = "user" }: { username?: string }) => {
       <div className="pointer-events-none absolute bottom-0 right-0 h-[520px] w-[520px] translate-x-1/4 translate-y-1/4 rounded-full bg-[radial-gradient(circle,_rgba(117,57,145,0.18)_0%,_rgba(117,57,145,0.05)_55%,_transparent_75%)]" />
 
       <main className="relative mx-auto flex min-h-screen max-w-[1500px] flex-col gap-10 px-6 pb-16 pt-12">
-        {isLoading ? (
-          <div className="rounded-2xl border border-[var(--stroke)] bg-white/80 p-4 text-sm font-medium text-[var(--navy-dark)] shadow-[var(--shadow)]">
-            Loading board...
-          </div>
-        ) : null}
-
         {error ? (
           <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-medium text-red-700">
             {error}
@@ -256,7 +276,7 @@ export const KanbanBoard = ({ username = "user" }: { username?: string }) => {
           </div>
         </header>
 
-        <div className="grid min-h-[620px] overflow-hidden rounded-xl border border-[var(--stroke)] bg-white/90 shadow-[var(--shadow)] xl:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="grid min-h-[620px] overflow-hidden rounded-xl border border-[var(--stroke)] bg-white/90 shadow-[var(--shadow)] 2xl:grid-cols-[minmax(0,1fr)_320px]">
           <DndContext
             sensors={sensors}
             collisionDetection={closestCorners}
@@ -270,6 +290,7 @@ export const KanbanBoard = ({ username = "user" }: { username?: string }) => {
                   column={column}
                   cards={column.cardIds.map((cardId) => board.cards[cardId])}
                   onRename={handleRenameColumn}
+                  onEditCard={handleEditCard}
                   onAddCard={handleAddCard}
                   onDeleteCard={handleDeleteCard}
                 />
@@ -283,7 +304,12 @@ export const KanbanBoard = ({ username = "user" }: { username?: string }) => {
               ) : null}
             </DragOverlay>
           </DndContext>
-          <AIChatSidebar board={board} username={username} onBoardUpdate={handleAIUpdate} />
+          <AIChatSidebar
+            board={board}
+            username={username}
+            onBoardUpdate={handleAIUpdate}
+            onBeforeSend={() => saveQueue.current}
+          />
         </div>
       </main>
     </div>
