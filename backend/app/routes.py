@@ -32,6 +32,7 @@ def put_user_board(username: str, board: Board) -> dict:
 def run_ai_request(board: dict, request: ChatRequest) -> tuple[AIResponse, Board | None, list[str]]:
     """Ask the model and apply its actions; if its answer is unusable, tell it why and let it try once more."""
     retry = None
+    problem = ""
     for _ in range(MAX_AI_ATTEMPTS):
         result = ai.query_openrouter(board, request.message, request.history, retry)
         try:
