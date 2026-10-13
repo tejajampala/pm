@@ -28,6 +28,10 @@ One Docker image serves everything on port 8000.
 - **SQLite schema:** `users`, `boards`, `columns`, `cards`; columns and cards are keyed `(board_id, id)`; order is an integer `position` that is read back by sorting (see `docs/kanban_schema.json`).
 - **Frontend (`frontend/src`):** `AuthGate` renders `KanbanBoard`, which owns state in a `boardRef` and funnels every change through `updateBoard`, which saves via a serialized promise queue (one PUT at a time, in order). Load failure shows an error with Retry and never falls back to seed data. Column titles save on blur or Enter; cards have inline edit. `lib/kanban.ts` has the types, `initialData` (tests only) and `moveCard`. Styling is Tailwind 4; Next 16, React 19. The chat sidebar is beside the board only at `2xl`. Under `next dev`, `/api/*` is proxied to `BACKEND_API_URL` (default `http://127.0.0.1:8000`).
 
+## Docs
+
+`docs/PLAN.md` (the 10-part plan), `docs/DATABASE.md` and `docs/kanban_schema.json` (schema), `docs/code_review*.md` (reviews and remediation). `backend/AGENTS.md` and `scripts/AGENTS.md` hold per-area notes for other agents.
+
 ## Commands
 
 Run the whole app (builds the image, passes the root `.env`, serves http://localhost:8000):
@@ -43,3 +47,7 @@ Frontend (from `frontend/`):
 - `npm run dev`, `npm run build` (also type-checks tests), `npm run lint`
 - `npm run test:unit` (Vitest); one file: `npx vitest run src/lib/kanban.test.ts`; one test: `npx vitest run -t "name"`
 - `npm run test:e2e` (Playwright): starts its own backend on port 8100 with a temporary database and AI disabled, and its own dev server on port 3100; it never reuses running servers, and each test resets the board through the API. `npm run test:all` runs unit then e2e.
+
+## Detailed Plan
+
+@docs/PLAN.md
