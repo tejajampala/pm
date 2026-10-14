@@ -1,6 +1,7 @@
 from helpers import client
 
 from app import db
+from app.models import FIXED_COLUMN_IDS
 
 
 def test_database_is_created_and_board_exists_for_demo_user():
@@ -25,13 +26,7 @@ def test_legacy_board_is_restored_to_five_columns_without_losing_existing_data()
 
     assert response.status_code == 200
     payload = response.json()
-    assert [column["id"] for column in payload["columns"]] == [
-        "col-backlog",
-        "col-discovery",
-        "col-progress",
-        "col-review",
-        "col-done",
-    ]
+    assert [column["id"] for column in payload["columns"]] == FIXED_COLUMN_IDS
     assert payload["columns"][0]["title"] == "Ready"
     assert payload["columns"][2]["title"] == "Doing"
     assert payload["cards"]["card-1"]["title"] == "Align roadmap themes"

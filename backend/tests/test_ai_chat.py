@@ -6,6 +6,29 @@ from helpers import client
 from app import ai
 
 
+def _fake_ai(monkeypatch, result):
+    monkeypatch.setattr(ai, "query_openrouter", lambda *args, **kwargs: result)
+
+
+def _stub_openrouter(monkeypatch, content='{"reply": "hi", "actions": []}'):
+    """Fake a successful OpenRouter call; returns the dict that records the request arguments."""
+    captured = {}
+
+    class OkResponse:
+        status_code = 200
+
+        def json(self):
+            return {"choices": [{"message": {"content": content}}]}
+
+    def fake_post(url, **kwargs):
+        captured.update(url=url, **kwargs)
+        return OkResponse()
+
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
+    monkeypatch.setattr(ai.httpx, "post", fake_post)
+    return captured
+
+
 def test_ai_chat_surfaces_openrouter_errors(monkeypatch):
     class FailedResponse:
         status_code = 429
@@ -26,12 +49,6 @@ def test_ai_chat_surfaces_openrouter_errors(monkeypatch):
 
     assert response.status_code == 502
     assert "rate limited" in response.json()["detail"]
-
-
-
-
-
-
 
 
 def test_ai_chat_uses_stored_board_and_trims_history(monkeypatch):
@@ -62,21 +79,7 @@ def test_ai_chat_rejects_unknown_history_roles():
 
 
 def test_query_openrouter_sends_expected_request_and_parses_fenced_json(monkeypatch):
-    captured = {}
-
-    class OkResponse:
-        status_code = 200
-        text = ""
-
-        def json(self):
-            return {"choices": [{"message": {"content": '```json\n{"reply": "hi", "actions": []}\n```'}}]}
-
-    def fake_post(url, **kwargs):
-        captured.update(url=url, **kwargs)
-        return OkResponse()
-
-    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
-    monkeypatch.setattr(ai.httpx, "post", fake_post)
+    captured = _stub_openrouter(monkeypatch, '```json\n{"reply": "hi", "actions": []}\n```')
 
     result = ai.query_openrouter(_board(), "hello", [])
 
@@ -112,10 +115,6 @@ def test_query_openrouter_without_api_key_reports_not_configured(monkeypatch):
 
     assert result["actions"] == []
     assert "not configured" in result["reply"]
-
-
-def _fake_ai(monkeypatch, result):
-    monkeypatch.setattr(ai, "query_openrouter", lambda *args, **kwargs: result)
 
 
 def test_ai_chat_applies_actions_and_saves_the_result(monkeypatch):
@@ -237,21 +236,7 @@ def test_ai_chat_rejects_blank_message():
 
 
 def test_query_openrouter_prompt_describes_actions_and_includes_the_board(monkeypatch):
-    captured = {}
-
-    class OkResponse:
-        status_code = 200
-        text = ""
-
-        def json(self):
-            return {"choices": [{"message": {"content": '{"reply": "hi", "actions": []}'}}]}
-
-    def fake_post(url, **kwargs):
-        captured.update(kwargs)
-        return OkResponse()
-
-    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
-    monkeypatch.setattr(ai.httpx, "post", fake_post)
+    captured = _stub_openrouter(monkeypatch)
 
     ai.query_openrouter(_board(), "Add a card", [])
 
@@ -320,21 +305,7 @@ def test_ai_chat_gives_up_after_two_attempts_and_changes_nothing(monkeypatch):
 
 
 def test_query_openrouter_sends_the_rejected_answer_and_reason_on_retry(monkeypatch):
-    captured = {}
-
-    class OkResponse:
-        status_code = 200
-        text = ""
-
-        def json(self):
-            return {"choices": [{"message": {"content": '{"reply": "hi", "actions": []}'}}]}
-
-    def fake_post(url, **kwargs):
-        captured.update(kwargs)
-        return OkResponse()
-
-    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
-    monkeypatch.setattr(ai.httpx, "post", fake_post)
+    captured = _stub_openrouter(monkeypatch)
 
     ai.query_openrouter(_board(), "Add", [], ({"reply": "bad"}, "AI response is invalid: actions."))
 
@@ -344,17 +315,7 @@ def test_query_openrouter_sends_the_rejected_answer_and_reason_on_retry(monkeypa
 
 
 def test_query_openrouter_requests_strict_schema_output_from_capable_providers(monkeypatch):
-    captured = {}
-
-    class OkResponse:
-        status_code = 200
-        text = ""
-
-        def json(self):
-            return {"choices": [{"message": {"content": '{"reply": "hi", "actions": []}'}}]}
-
-    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
-    monkeypatch.setattr(ai.httpx, "post", lambda url, **kwargs: captured.update(kwargs) or OkResponse())
+    captured = _stub_openrouter(monkeypatch)
 
     ai.query_openrouter(_board(), "Add", [])
 

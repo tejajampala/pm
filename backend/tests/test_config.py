@@ -1,3 +1,5 @@
+import os
+
 from app import config
 
 
@@ -10,8 +12,8 @@ def test_load_env_file_sets_missing_values_and_keeps_existing_ones(tmp_path, mon
 
     config.load_env_file()
 
-    assert config.os.environ["PM_NEW"] == "from-file"
-    assert config.os.environ["PM_EXISTING"] == "from-environment"
+    assert os.environ["PM_NEW"] == "from-file"
+    assert os.environ["PM_EXISTING"] == "from-environment"
     monkeypatch.delenv("PM_NEW")
 
 

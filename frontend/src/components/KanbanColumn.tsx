@@ -63,21 +63,17 @@ export const KanbanColumn = ({
       )}
       data-testid={`column-${column.id}`}
     >
-      <div className="flex items-start justify-between gap-3">
-        <div className="w-full">
-          <div className="flex items-center gap-3">
-            <div className="h-2 w-10 rounded-full bg-[var(--accent-yellow)]" />
-            <span className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--gray-text)]">
-              {cards.length} {cards.length === 1 ? "card" : "cards"}
-            </span>
-          </div>
-          <ColumnTitleInput
-            key={column.title}
-            title={column.title}
-            onCommit={(title) => onRename(column.id, title)}
-          />
-        </div>
+      <div className="flex items-center gap-3">
+        <div className="h-2 w-10 rounded-full bg-[var(--accent-yellow)]" />
+        <span className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--gray-text)]">
+          {cards.length} {cards.length === 1 ? "card" : "cards"}
+        </span>
       </div>
+      <ColumnTitleInput
+        key={column.title}
+        title={column.title}
+        onCommit={(title) => onRename(column.id, title)}
+      />
       <div className="mt-4 flex flex-1 flex-col gap-3">
         <SortableContext items={column.cardIds} strategy={verticalListSortingStrategy}>
           {cards.map((card) => (
@@ -95,9 +91,7 @@ export const KanbanColumn = ({
           </div>
         )}
       </div>
-      <NewCardForm
-        onAdd={(title, details) => onAddCard(column.id, title, details)}
-      />
+      <NewCardForm onAdd={(title, details) => onAddCard(column.id, title, details)} />
     </section>
   );
 };

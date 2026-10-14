@@ -18,12 +18,16 @@ import { createId, moveCard, type BoardData } from "@/lib/kanban";
 
 const getBoardUrl = (username: string) => `/api/users/${encodeURIComponent(username)}/board`;
 
-const isBoardData = (payload: unknown): payload is BoardData =>
-  typeof payload === "object" &&
-  payload !== null &&
-  Array.isArray((payload as BoardData).columns) &&
-  typeof (payload as BoardData).cards === "object" &&
-  (payload as BoardData).cards !== null;
+const isBoardData = (payload: unknown): payload is BoardData => {
+  const board = payload as BoardData | null;
+  return (
+    typeof board === "object" &&
+    board !== null &&
+    Array.isArray(board.columns) &&
+    typeof board.cards === "object" &&
+    board.cards !== null
+  );
+};
 
 export const KanbanBoard = ({ username = "user" }: { username?: string }) => {
   const [board, setBoard] = useState<BoardData | null>(null);
@@ -44,10 +48,7 @@ export const KanbanBoard = ({ username = "user" }: { username?: string }) => {
         setIsLoading(true);
         setError(null);
 
-        const response = await fetch(getBoardUrl(username), {
-          cache: "no-store",
-        });
-
+        const response = await fetch(getBoardUrl(username), { cache: "no-store" });
         if (!response.ok) {
           throw new Error(`Board request failed with status ${response.status}`);
         }
@@ -82,12 +83,9 @@ export const KanbanBoard = ({ username = "user" }: { username?: string }) => {
   const saveBoard = async (nextBoard: BoardData) => {
     const response = await fetch(getBoardUrl(username), {
       method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(nextBoard),
     });
-
     if (!response.ok) {
       throw new Error(`Board save failed with status ${response.status}`);
     }
@@ -95,11 +93,7 @@ export const KanbanBoard = ({ username = "user" }: { username?: string }) => {
     setError(null);
   };
 
-  const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: { distance: 6 },
-    })
-  );
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
 
   const updateBoard = (change: (current: BoardData) => BoardData, failureMessage: string) => {
     const current = boardRef.current;
@@ -185,10 +179,7 @@ export const KanbanBoard = ({ username = "user" }: { username?: string }) => {
         ),
         columns: current.columns.map((column) =>
           column.id === columnId
-            ? {
-                ...column,
-                cardIds: column.cardIds.filter((id) => id !== cardId),
-              }
+            ? { ...column, cardIds: column.cardIds.filter((id) => id !== cardId) }
             : column
         ),
       }),

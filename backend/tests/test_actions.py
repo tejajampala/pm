@@ -6,10 +6,13 @@ from app.actions import ActionError, apply_actions
 from app.models import AIResponse
 
 
+def _parse(*actions):
+    return AIResponse.model_validate({"reply": "", "actions": list(actions)}).actions
+
+
 def _apply(*actions):
     board = db.get_default_board()
-    parsed = AIResponse.model_validate({"reply": "", "actions": list(actions)}).actions
-    result, _ = apply_actions(board, parsed)
+    result, _ = apply_actions(board, _parse(*actions))
     return board, result.model_dump()
 
 
@@ -104,21 +107,15 @@ def test_results_that_break_board_rules_raise_validation_error():
 
 
 def test_apply_actions_describes_each_change_actually_made():
-    board = db.get_default_board()
-    actions = AIResponse.model_validate(
-        {
-            "reply": "",
-            "actions": [
-                {"type": "create_card", "columnId": "col-review", "title": "Docs"},
-                {"type": "update_card", "cardId": "card-1", "title": "Roadmap v2"},
-                {"type": "move_card", "cardId": "card-2", "columnId": "col-done"},
-                {"type": "delete_card", "cardId": "card-3"},
-                {"type": "rename_column", "columnId": "col-progress", "title": "Doing"},
-            ],
-        }
-    ).actions
+    actions = _parse(
+        {"type": "create_card", "columnId": "col-review", "title": "Docs"},
+        {"type": "update_card", "cardId": "card-1", "title": "Roadmap v2"},
+        {"type": "move_card", "cardId": "card-2", "columnId": "col-done"},
+        {"type": "delete_card", "cardId": "card-3"},
+        {"type": "rename_column", "columnId": "col-progress", "title": "Doing"},
+    )
 
-    _, changes = apply_actions(board, actions)
+    _, changes = apply_actions(db.get_default_board(), actions)
 
     assert changes == [
         "Added 'Docs' to Review",

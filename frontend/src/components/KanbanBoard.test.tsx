@@ -20,25 +20,16 @@ const stubFetch = (handler: (method: string, body?: string) => Promise<{ ok: boo
   return fetchMock;
 };
 
+// A backend that serves initialData and echoes every saved board back.
+const stubWorkingBackend = () =>
+  stubFetch(async (method, body) => ({
+    ok: true,
+    json: async () => (method === "PUT" ? JSON.parse(String(body)) : initialData),
+  }));
+
 describe("KanbanBoard", () => {
   beforeEach(() => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
-        const method = init?.method ?? "GET";
-
-        return {
-          ok: true,
-          json: async () => {
-            if (method === "PUT") {
-              return JSON.parse(String(init?.body ?? "{}"));
-            }
-
-            return initialData;
-          },
-        };
-      })
-    );
+    stubWorkingBackend();
   });
 
   afterEach(() => {
@@ -72,10 +63,7 @@ describe("KanbanBoard", () => {
   });
 
   it("renames a column and saves once when editing is finished", async () => {
-    const fetchMock = stubFetch(async (method, body) => ({
-      ok: true,
-      json: async () => (method === "PUT" ? JSON.parse(String(body)) : initialData),
-    }));
+    const fetchMock = stubWorkingBackend();
     render(<KanbanBoard />);
     const input = within(await getFirstColumn()).getByLabelText("Column title");
     await userEvent.clear(input);
@@ -103,33 +91,20 @@ describe("KanbanBoard", () => {
   it("adds and removes a card", async () => {
     render(<KanbanBoard />);
     const column = await getFirstColumn();
-    const addButton = within(column).getByRole("button", {
-      name: /add a card/i,
-    });
-    await userEvent.click(addButton);
-
-    const titleInput = within(column).getByPlaceholderText(/card title/i);
-    await userEvent.type(titleInput, "New card");
-    const detailsInput = within(column).getByPlaceholderText(/details/i);
-    await userEvent.type(detailsInput, "Notes");
-
+    await userEvent.click(within(column).getByRole("button", { name: /add a card/i }));
+    await userEvent.type(within(column).getByPlaceholderText(/card title/i), "New card");
+    await userEvent.type(within(column).getByPlaceholderText(/details/i), "Notes");
     await userEvent.click(within(column).getByRole("button", { name: /add card/i }));
 
     expect(within(column).getByText("New card")).toBeInTheDocument();
 
-    const deleteButton = within(column).getByRole("button", {
-      name: /delete new card/i,
-    });
-    await userEvent.click(deleteButton);
+    await userEvent.click(within(column).getByRole("button", { name: /delete new card/i }));
 
     expect(within(column).queryByText("New card")).not.toBeInTheDocument();
   });
 
   it("edits a card and saves the change", async () => {
-    const fetchMock = stubFetch(async (method, body) => ({
-      ok: true,
-      json: async () => (method === "PUT" ? JSON.parse(String(body)) : initialData),
-    }));
+    const fetchMock = stubWorkingBackend();
     render(<KanbanBoard />);
     await userEvent.click(await screen.findByRole("button", { name: "Edit Align roadmap themes" }));
 
@@ -230,14 +205,11 @@ describe("KanbanBoard", () => {
         index === 0 ? { ...column, cardIds: [...column.cardIds, "card-ai"] } : column
       ),
     };
-    const fetchMock = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => ({
+    const fetchMock = stubFetch(async (method) => ({
       ok: true,
       json: async () =>
-        init?.method === "POST"
-          ? { reply: "Added the release task.", boardUpdate: updatedBoard }
-          : initialData,
+        method === "POST" ? { reply: "Added the release task.", boardUpdate: updatedBoard } : initialData,
     }));
-    vi.stubGlobal("fetch", fetchMock);
 
     render(<KanbanBoard username="user" />);
     await userEvent.type(await screen.findByLabelText("Message the assistant"), "Add a release task");

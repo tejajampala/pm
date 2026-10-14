@@ -40,9 +40,9 @@ def run_ai_request(board: dict, request: ChatRequest) -> tuple[AIResponse, Board
         except ValidationError as exc:
             problem = f"AI response is invalid: {format_errors(exc.errors())}"
         else:
+            if not response.actions:
+                return response, None, []
             try:
-                if not response.actions:
-                    return response, None, []
                 update, changes = apply_actions(board, response.actions)
                 return response, update, changes
             except ActionError as exc:

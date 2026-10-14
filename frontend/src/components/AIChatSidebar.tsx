@@ -12,7 +12,7 @@ type AIChatSidebarProps = {
   board: BoardData;
   username: string;
   onBoardUpdate: (board: BoardData) => void;
-  onBeforeSend?: () => Promise<void>;
+  onBeforeSend: () => Promise<void>;
 };
 
 const MAX_HISTORY_TURNS = 20;
@@ -35,7 +35,7 @@ export const AIChatSidebar = ({ board, username, onBoardUpdate, onBeforeSend }: 
 
     try {
       // Let pending board saves finish so the AI works from, and then replaces, the latest saved board.
-      await onBeforeSend?.();
+      await onBeforeSend();
       const response = await fetch("/api/ai/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -55,10 +55,7 @@ export const AIChatSidebar = ({ board, username, onBoardUpdate, onBeforeSend }: 
         );
       }
 
-      setMessages((current) => [
-        ...current,
-        { role: "assistant", content: payload.reply },
-      ]);
+      setMessages((current) => [...current, { role: "assistant", content: payload.reply }]);
       if (payload.boardUpdate) onBoardUpdate(payload.boardUpdate as BoardData);
     } catch (sendError) {
       setError(sendError instanceof Error ? sendError.message : "Unable to reach the AI assistant.");
